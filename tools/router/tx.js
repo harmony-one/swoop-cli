@@ -84,6 +84,24 @@ function outputInfo(decodedInput) {
     case 'removeLiquidityETH':
       outputRemoveLiquidityEthInfo(decodedInput);
       break;
+    case 'swapExactTokensForTokens':
+      outputSwapExactTokensForTokensInfo(decodedInput);
+      break;
+    case 'swapTokensForExactTokens':
+      outputSwapTokensForExactTokensInfo(decodedInput);
+      break;
+    case 'swapExactETHForTokens':
+      outputSwapExactETHForTokensInfo(decodedInput);
+      break;
+    case 'swapTokensForExactETH':
+      outputSwapTokensForExactETHInfo(decodedInput);
+      break;
+    case 'swapExactTokensForETH':
+      outputSwapExactTokensForETHInfo(decodedInput);
+      break;
+    case 'swapETHForExactTokens':
+      outputSwapETHForExactTokensInfo(decodedInput);
+      break;
   }
 }
 
@@ -144,6 +162,82 @@ function outputRemoveLiquidityEthInfo(decodedInput) {
   let tokenSymbol = (token) ? token.symbol : '';
 
   console.log(`Removed ${liquidity} liquidity (method: 'removeLiquidityETH') for ONE/wONE (amount mininum: ${amountETHMin}) and token ${tokenSymbol} (amount minimum: ${amountTokenMin})`);
+}
+
+function outputSwapExactTokensForTokensInfo(decodedInput) {
+  var [ amountIn, amountOutMin, path, to, deadline ] = decodedInput.contractMethodParameters;
+  console.log({ amountIn, amountOutMin, path, to, deadline });
+  amountIn = web3.utils.fromWei(amountIn);
+  amountOutMin = web3.utils.fromWei(amountOutMin);
+
+  let startToken = findTokenBy(tokens, 'address', path[0]);
+  let startTokenSymbol = (startToken) ? startToken.symbol : '';
+
+  let endToken = findTokenBy(tokens, 'address', path[path.length - 1]);
+  let endTokenSymbol = (endToken) ? endToken.symbol : '';
+
+  console.log(`Swapped (method: 'swapExactTokensForTokens') ${amountIn} ${startTokenSymbol} (${path[0]}) for ${endTokenSymbol} (${path[path.length - 1]}) (amount minimum: ${amountOutMin})`)
+}
+
+function outputSwapTokensForExactTokensInfo(decodedInput) {
+  var [ amountOut, amountInMax, path, to, deadline ] = decodedInput.contractMethodParameters;
+  console.log({ amountOut, amountInMax, path, to, deadline });
+  amountOut = web3.utils.fromWei(amountOut);
+  amountInMax = web3.utils.fromWei(amountInMax);
+
+  let startToken = findTokenBy(tokens, 'address', path[0]);
+  let startTokenSymbol = (startToken) ? startToken.symbol : '';
+
+  let endToken = findTokenBy(tokens, 'address', path[path.length - 1]);
+  let endTokenSymbol = (endToken) ? endToken.symbol : '';
+
+  console.log(`Swapped (method: 'swapTokensForExactTokens' ${startTokenSymbol} (${path[0]}) (amount maximum: ${amountInMax}) for ${amountOut} ${endTokenSymbol} (${path[path.length - 1]})`)
+}
+
+function outputSwapExactETHForTokensInfo(decodedInput) {
+  var [ amountOutMin, path, to, deadline ] = decodedInput.contractMethodParameters;
+  console.log({ amountOutMin, path, to, deadline })
+  amountOutMin = web3.utils.fromWei(amountOutMin);
+
+  let endToken = findTokenBy(tokens, 'address', path[path.length - 1]);
+  let endTokenSymbol = (endToken) ? endToken.symbol : '';
+
+  console.log(`Swapped (method: 'swapExactETHForTokens') ONE/wONE for ${endTokenSymbol} (${path[path.length - 1]}) (amount minimum: ${amountOutMin})`)
+}
+
+function outputSwapTokensForExactETHInfo(decodedInput) {
+  var [ amountOut, amountInMax, path, to, deadline ] = decodedInput.contractMethodParameters;
+  console.log({ amountOut, amountInMax, path, to, deadline });
+  amountOut = web3.utils.fromWei(amountOut);
+  amountInMax = web3.utils.fromWei(amountInMax);
+
+  let startToken = findTokenBy(tokens, 'address', path[0]);
+  let startTokenSymbol = (startToken) ? startToken.symbol : '';
+
+  console.log(`Swapped (method: 'swapTokensForExactETH' ${startTokenSymbol} (${path[0]}) (amount maximum: ${amountInMax}) for ${amountOut} ONE`)
+}
+
+function outputSwapExactTokensForETHInfo(decodedInput) {
+  var [ amountIn, amountOutMin, path, to, deadline ] = decodedInput.contractMethodParameters;
+  console.log({ amountIn, amountOutMin, path, to, deadline });
+  amountIn = web3.utils.fromWei(amountIn);
+  amountOutMin = web3.utils.fromWei(amountOutMin);
+
+  let startToken = findTokenBy(tokens, 'address', path[0]);
+  let startTokenSymbol = (startToken) ? startToken.symbol : '';
+
+  console.log(`Swapped (method: 'swapExactTokensForETH') ${amountIn} ${startTokenSymbol} (${path[0]}) for ONE/wONE (amount minimum: ${amountOutMin})`)
+}
+
+function outputSwapETHForExactTokensInfo(decodedInput) {
+  var [ amountOut, path, to, deadline ] = decodedInput.contractMethodParameters;
+  console.log({ amountOut, path, to, deadline });
+  amountOut = web3.utils.fromWei(amountOut);
+
+  let endToken = findTokenBy(tokens, 'address', path[path.length - 1]);
+  let endTokenSymbol = (endToken) ? endToken.symbol : '';
+
+  console.log(`Swapped (method: 'swapTokensForExactTokens' ONE/wONE for ${amountOut} ${endTokenSymbol} (${path[path.length - 1]})`)
 }
 
 status()
