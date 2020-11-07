@@ -99,25 +99,40 @@ async function send() {
     for(let token of tokens) {
       const tokenAddress = token.address;
       const oneTokenAddress = toBech32(tokenAddress);
-  
-      const tokenContract = network.loadContract(`@swoop-exchange/misc/build/contracts/${token.name}.json`, tokenAddress, 'deployer');
-      const tokenInstance = tokenContract.methods;
+
+      var tokenContract = null;
+      var tokenInstance = null;
+      var contractName = token.name;
       
-      const walletAddress = tokenContract.wallet.signer.address;
-      const oneWalletAddress = toBech32(walletAddress);
-  
-      let total = await tokenInstance.totalSupply().call(network.gasOptions());
-      let formattedTotal = web3.utils.fromWei(total);
-      console.log(`Current total supply for the token ${token.name} (address: ${oneTokenAddress} / ${tokenAddress}) is: ${formattedTotal}\n`);
+      if (contractName == 'Wrapped BTC') {
+        contractName = 'WBTC';
+      }
 
-      await tokenBalance(tokenInstance, token, walletAddress, oneWalletAddress);
+      const contractPath = `@swoop-exchange/misc/build/contracts/${contractName}.json`;
+      
+      try {
+        tokenContract = network.loadContract(contractPath, tokenAddress, 'deployer');
+        tokenInstance = tokenContract.methods;
+      } catch (error) {
+      }
+
+      if (tokenContract && tokenInstance) {
+        const walletAddress = tokenContract.wallet.signer.address;
+        const oneWalletAddress = toBech32(walletAddress);
     
-      console.log(`Attempting to send ${amountString} ${token.name} to ${oneToAddress} (${toAddress}) ...`);
-      let result = await tokenInstance.transfer(toAddress, amount).send(network.gasOptions());
-      let txHash = result.transaction.receipt.transactionHash;
-      console.log(`Sent ${amountString} ${token.name} to ${oneToAddress}, tx hash: ${txHash}\n`);
-
-      await tokenBalance(tokenInstance, token, toAddress, oneToAddress);
+        let total = await tokenInstance.totalSupply().call(network.gasOptions());
+        let formattedTotal = web3.utils.fromWei(total);
+        console.log(`Current total supply for the token ${token.name} (address: ${oneTokenAddress} / ${tokenAddress}) is: ${formattedTotal}\n`);
+  
+        await tokenBalance(tokenInstance, token, walletAddress, oneWalletAddress);
+      
+        console.log(`Attempting to send ${amountString} ${token.name} to ${oneToAddress} (${toAddress}) ...`);
+        let result = await tokenInstance.transfer(toAddress, amount).send(network.gasOptions());
+        let txHash = result.transaction.receipt.transactionHash;
+        console.log(`Sent ${amountString} ${token.name} to ${oneToAddress}, tx hash: ${txHash}\n`);
+  
+        await tokenBalance(tokenInstance, token, toAddress, oneToAddress);
+      }
     }
   }
 }

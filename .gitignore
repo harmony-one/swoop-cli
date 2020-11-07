@@ -1,5 +1,6 @@
 node_modules/
 build/
+export/
 .env
 
 .DS_Store

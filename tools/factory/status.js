@@ -146,8 +146,8 @@ async function pairDetails(address) {
   let dateTime = (timestamp > 0) ? stringDate(timestamp) : '';
 
   console.log(`The reserves for the pair contract ${address} is:`);
-  console.log(`  Reserve 0: ${web3.utils.fromWei(reserve0)} - ${token0Symbol}`);
-  console.log(`  Reserve 1: ${web3.utils.fromWei(reserve1)} - ${token1Symbol}`);
+  console.log(`  Reserve 0: ${web3.utils.fromWei(reserve0)} (${reserve0}) - ${token0Symbol}`);
+  console.log(`  Reserve 1: ${web3.utils.fromWei(reserve1)} (${reserve1}) - ${token1Symbol}`);
   console.log(`  Total reserves: ${web3.utils.fromWei(totalReserves.toString())}`);
   console.log(`  BlockTimestampLast: ${dateTime} (${timestamp})\n`);
 }
