@@ -60,15 +60,20 @@ const txs = {
 }
 
 async function status() {
-  const results = await getTransactionHistory(oneRouterAddress, 0, size, false, 'all', 'desc', 0);
-  var txHashes = (results && results.result && results.result.transactions) ? results.result.transactions : [];
+  const txHashes = await getAllTransactionHistory(oneRouterAddress, size, false, 'all', 'desc', 0);
   
   if (txHashes && txHashes.length > 0) {
-    console.log(`Found a total of ${txHashes.length} transactions for router ${routerAddress} (${oneRouterAddress})`);
+    console.log(`Found a total of ${txHashes.length} transactions for router ${routerAddress} (${oneRouterAddress}) on ${argv.network}`);
+
+    var txPromises = [];
 
     for(let txHash of txHashes) {
-      const txResult = await getDecodedTransaction(txHash);
+      txPromises.push(getDecodedTransaction(txHash));
+    }
 
+    const txResults = await Promise.all(txPromises);
+
+    for(let txResult of txResults) {
       if (txResult && txResult.tx && txResult.decoded) {
         /*console.log(`Method: ${txResult.decoded.name}`);
         console.log(`Method signature:`);
@@ -84,15 +89,19 @@ async function status() {
         txs[txType].push(txResult);
       }
     }
+
+  } else {
+    console.log(`Couldn't find any transactions for router ${routerAddress} (${oneRouterAddress}) on ${argv.network}`);
   }
 
   const segmentTxs = (txs && txs[type] && txs[type].length > 0) ? txs[type] : [];
   if (segmentTxs && segmentTxs.length > 0) {
-    await processTxs(segmentTxs);
+    console.log(`Found a total of ${segmentTxs.length} ${type} transactions for router ${routerAddress} (${oneRouterAddress}) on ${argv.network}`);
+    await exportToCsv(segmentTxs);
   }
 }
 
-async function processTxs(txs) {
+async function exportToCsv(txs) {
   const csvData = [];
 
   for(let result of txs) {
@@ -138,6 +147,26 @@ function stringDate(epoch) {
   utcEta.setUTCSeconds(epoch);
   
   return utcEta.toUTCString();
+}
+
+async function getAllTransactionHistory(address, pageSize, fullTxs, txType, order, shardID) {
+  pageIndex = 0;
+  var results = [];
+  var txHashes = [];
+
+  do {
+    txHashes = [];
+    const batchResult = await getTransactionHistory(address, pageIndex, pageSize, fullTxs, txType, order, shardID);
+    txHashes = (batchResult && batchResult.result && batchResult.result.transactions) ? batchResult.result.transactions : [];
+    pageIndex++;
+    
+    if (txHashes && txHashes.length > 0) {
+      results = results.concat(txHashes);
+    }
+  }
+  while (txHashes && txHashes.length > 0);
+
+  return results;
 }
 
 async function getTransactionHistory(address, pageIndex, pageSize, fullTxs, txType, order, shardID) {
