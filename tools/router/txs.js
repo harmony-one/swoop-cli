@@ -18,11 +18,16 @@ const argv = yargs
     type: 'string',
     default: 'all'
   })
-  .option('size', {
-    alias: 's',
-    description: 'Number of transactions to fetch',
+  .option('per-page', {
+    alias: 'p',
+    description: 'Number of transactions to fetch per page',
     type: 'integer',
-    default: 10
+    default: 1000
+  })
+  .option('address', {
+    alias: 'a',
+    description: 'Filter transactions based on a specific sender address',
+    type: 'string'
   })
   .help()
   .alias('help', 'h')
@@ -30,7 +35,9 @@ const argv = yargs
 
 const routerAddress = argv.router;
 const type = argv.type;
-const size = argv.size;
+const size = argv['per-page'];
+var address = argv.address;
+var oneAddress = null;
 
 if (routerAddress == null || routerAddress == '') {
   console.log('You must supply a router address using --router CONTRACT_ADDRESS or -r CONTRACT_ADDRESS!');
@@ -39,18 +46,28 @@ if (routerAddress == null || routerAddress == '') {
 
 // Libs
 const { HmyEnv} = require("@swoop-exchange/utils");
-const { decodeParameters, decodeInput } = require("../shared/contracts");
+const { getAllDecodedTransactions, determineTxType, transactionsByBlocks, transactionsByAddresses } = require("../shared/transactions");
+const { decodeRouterParams } = require("../shared/contracts");
 const { parseTokens, findTokenBy } = require("../shared/tokens");
 const web3 = require('web3');
-const { toBech32 } = require("@harmony-js/crypto");
+const { fromBech32, toBech32 } = require("@harmony-js/crypto");
 const ObjectsToCsv = require('objects-to-csv');
-const { hexToNumber} = require('@harmony-js/utils');
+const { hexToNumber, isBech32Address } = require('@harmony-js/utils');
 
 // Vars
 const network = new HmyEnv(argv.network);
-const factoryContract = network.loadContract('@swoop-exchange/periphery/build/contracts/UniswapV2Router02.json', routerAddress, 'deployer');
+const contractPath = '@swoop-exchange/periphery/build/contracts/UniswapV2Router02.json';
 const tokens = parseTokens(network, 'all');
 const oneRouterAddress = toBech32(routerAddress);
+
+if (address && address != '') {
+  if (isBech32Address(address)) {
+    oneAddress = address
+    address = fromBech32(address);
+  } else {
+    oneAddress = toBech32(address);
+  }
+}
 
 const txs = {
   'all': [],
@@ -59,37 +76,38 @@ const txs = {
   'removeLiquidity': []
 }
 
+function createContract() {
+  return network.loadContract(contractPath, routerAddress, 'deployer');
+}
+
 async function status() {
-  const txHashes = await getAllTransactionHistory(oneRouterAddress, size, false, 'all', 'desc', 0);
+  const decodedTxs = await getAllDecodedTransactions(network, createContract, oneRouterAddress, true, size, 'RECEIVED', 'ASC', 0);
   
-  if (txHashes && txHashes.length > 0) {
-    console.log(`Found a total of ${txHashes.length} transactions for router ${routerAddress} (${oneRouterAddress}) on ${argv.network}`);
+  if (decodedTxs && decodedTxs.length > 0) {
+    for(let txResult of decodedTxs) {
+      if (txResult.decoded) {
+        var routerParams = decodeRouterParams(txResult.tx, txResult.decoded);
+        if (routerParams) {
+          txResult.decoded.routerParams = routerParams;
+        }
+      }
 
-    var txPromises = [];
-
-    for(let txHash of txHashes) {
-      txPromises.push(getDecodedTransaction(txHash));
-    }
-
-    const txResults = await Promise.all(txPromises);
-
-    for(let txResult of txResults) {
-      if (txResult && txResult.tx && txResult.decoded) {
-        /*console.log(`Method: ${txResult.decoded.name}`);
-        console.log(`Method signature:`);
-        console.log(txResult.decoded.inputs);
-        console.log(`Method parameters:`);
-        console.log(txResult.decoded.contractMethodParameters);*/
-
-        const txType = determineTxType(txResult.decoded.name);
-
+      const txType = determineTxType(txResult.decoded.name);
+      if (txType && txType !== '') {
         console.log(`Found ${txType} transaction ${txResult.tx.hash} from ${txResult.tx.from}`);
+        txResult.txType = txType;
+      }
 
+      if (oneAddress && oneAddress != '') {
+        if (oneAddress.toLowerCase() == txResult.tx.from.toLowerCase()) {
+          txs['all'].push(txResult);
+          txs[txType].push(txResult);
+        }
+      } else {
         txs['all'].push(txResult);
         txs[txType].push(txResult);
       }
     }
-
   } else {
     console.log(`Couldn't find any transactions for router ${routerAddress} (${oneRouterAddress}) on ${argv.network}`);
   }
@@ -105,41 +123,115 @@ async function exportToCsv(txs) {
   const csvData = [];
 
   for(let result of txs) {
-    const {tx, decoded} = result;
+    const {tx, txType, receipt, decoded} = result;
     const timestamp = hexToNumber(tx.timestamp);
     const dateTime = (timestamp > 0) ? stringDate(timestamp) : '';
+    const status = (receipt.status.toLowerCase() == '0x1') ? 'Success' : 'Failure';
+    const tokenData = parseTokenData(decoded);
 
     csvData.push({
       address: tx.from,
       txHash: tx.hash,
       timestamp: dateTime,
-      category: type,
-      method: decoded.name
+      status: status,
+      category: txType,
+      method: decoded.name,
+      tokenA: tokenData.tokenA,
+      tokenAAmount: tokenData.tokenADesired,
+      tokenB: tokenData.tokenB,
+      tokenBAmount: tokenData.tokenBDesired,
     })
   }
 
+  var addressPrefix = (oneAddress && oneAddress != '') ? `${oneAddress}-` : '';
+  var csvPath = `./export/${addressPrefix}${type}-txs.csv`;
+
   if (csvData && csvData.length > 0) {
     const csv = new ObjectsToCsv(csvData);
-    await csv.toDisk(`./export/${type}-txs.csv`);
+    await csv.toDisk(csvPath);
   }
 }
 
-function determineTxType(methodName) {
-  switch (methodName) {
-    case 'addLiquidity':
-    case 'addLiquidityETH':
-      return 'addLiquidity';
-    case 'removeLiquidity':
-    case 'removeLiquidityETH':
-      return 'removeLiquidity';
-    case 'swapExactTokensForTokens':
-    case 'swapTokensForExactTokens':
-    case 'swapExactETHForTokens':
-    case 'swapTokensForExactETH':
-    case 'swapExactTokensForETH':
-    case 'swapETHForExactTokens':
-      return 'swap';
+function parseTokenData(decoded) {
+  var tokenAAddress = null;
+  var tokenADesired = null;
+
+  var tokenBAddress = null;
+  var tokenBDesired = null;
+
+  var wone = findTokenBy(tokens, 'symbol', 'WONE');
+
+  var routerParams = decoded.routerParams;
+
+  if (('tokenAAddress' in routerParams) && ('tokenBAddress' in routerParams)) {
+    tokenAAddress = routerParams.tokenAAddress;
+    tokenBAddress = routerParams.tokenBAddress;
+  } else if ('tokenAddress' in routerParams) {
+    tokenAAddress = wone.address;
+    tokenBAddress = routerParams.tokenAddress;
+  } else if ('path' in decoded.routerParams) {
+    tokenAAddress = routerParams.path[0];
+    tokenBAddress = (routerParams.path.length > 1) ? routerParams.path[routerParams.path.length-1] : wone.address;
   }
+
+  var tokenA = findTokenBy(tokens, 'address', tokenAAddress);
+  tokenASymbol = (tokenA && tokenA.symbol) ? tokenA.symbol : toBech32(tokenAAddress);
+  tokenASymbol = (tokenASymbol === 'WONE') ? 'ONE' : tokenASymbol;
+
+  var tokenB = findTokenBy(tokens, 'address', tokenBAddress);
+  tokenBSymbol = (tokenB && tokenB.symbol) ? tokenB.symbol : toBech32(tokenBAddress);
+  tokenBSymbol = (tokenBSymbol === 'WONE') ? 'ONE' : tokenBSymbol;
+
+  switch (routerParams.method) {
+    case 'addLiquidity':
+      tokenADesired = routerParams.amountADesired;
+      tokenBDesired = routerParams.amountBDesired;
+      break;
+    case 'addLiquidityETH':
+      tokenADesired = routerParams.amountETHDesired;
+      tokenBDesired = routerParams.amountTokenDesired;
+      break;
+    case 'removeLiquidity':
+      tokenADesired = routerParams.amountAMin;
+      tokenBDesired = routerParams.amountBMin;
+      break;
+    case 'removeLiquidityETH':
+      tokenADesired = routerParams.amountETHMin;
+      tokenBDesired = routerParams.amountTokenMin;
+      break;
+    case 'swapExactTokensForTokens':
+      tokenADesired = routerParams.amountIn;
+      tokenBDesired = routerParams.amountOutMin;
+      break;
+    case 'swapTokensForExactTokens':
+      tokenADesired = routerParams.amountInMax;
+      tokenBDesired = routerParams.amountOut;
+      break;
+    case 'swapExactETHForTokens':
+      tokenADesired = routerParams.amountETHDesired;
+      tokenBDesired = routerParams.amountOutMin;
+      break;
+    case 'swapTokensForExactETH':
+      tokenADesired = routerParams.amountInMax;
+      tokenBDesired = routerParams.amountOut;
+      break;
+    case 'swapExactTokensForETH':
+      tokenADesired = routerParams.amountIn;
+      tokenBDesired = routerParams.amountOutMin;
+      break;
+    case 'swapETHForExactTokens':
+      tokenADesired = routerParams.amountETHDesired;
+      tokenBDesired = routerParams.amountOut;
+      break;
+  }
+
+  var tokenADecimals = (tokenA && tokenA.decimals) ? tokenA.decimals : 18;
+  var tokenBDecimals = (tokenB && tokenB.decimals) ? tokenB.decimals : 18;
+
+  tokenADesired = convertAmount(tokenADesired, tokenADecimals);
+  tokenBDesired = convertAmount(tokenBDesired, tokenBDecimals);
+
+  return {tokenA: tokenASymbol, tokenB: tokenBSymbol, tokenADesired: tokenADesired, tokenBDesired: tokenBDesired};
 }
 
 function stringDate(epoch) {
@@ -149,104 +241,16 @@ function stringDate(epoch) {
   return utcEta.toUTCString();
 }
 
-async function getAllTransactionHistory(address, pageSize, fullTxs, txType, order, shardID) {
-  pageIndex = 0;
-  var results = [];
-  var txHashes = [];
+function convertAmount(amountString, decimals) {
+  var amount = null;
 
-  do {
-    txHashes = [];
-    const batchResult = await getTransactionHistory(address, pageIndex, pageSize, fullTxs, txType, order, shardID);
-    txHashes = (batchResult && batchResult.result && batchResult.result.transactions) ? batchResult.result.transactions : [];
-    pageIndex++;
-    
-    if (txHashes && txHashes.length > 0) {
-      results = results.concat(txHashes);
-    }
-  }
-  while (txHashes && txHashes.length > 0);
-
-  return results;
-}
-
-async function getTransactionHistory(address, pageIndex, pageSize, fullTxs, txType, order, shardID) {
-  if (pageIndex == null) {
-    pageIndex = 0;
+  if (decimals == 18) {
+    amount = web3.utils.fromWei(amountString);
+  } else {
+    amount = (parseFloat(amountString) / 10**decimals).toFixed(decimals);
   }
 
-  if (pageSize == null) {
-    pageSize = 1000;
-  }
-
-  if (fullTxs == null) {
-    fullTxs = false;
-  }
-
-  if (txType == null) {
-    txType = 'all';
-  }
-
-  txType = txType.toUpperCase();
-
-  if (order == null) {
-    order = 'asc';
-  }
-
-  order = order.toUpperCase();
-
-  if (shardID == null) {
-    shardID = 0;
-  }
-
-  const params = [
-    {
-      'address': address,
-      'pageIndex': pageIndex,
-      'pageSize': pageSize,
-      'fullTx': fullTxs,
-      'txType': txType,
-      'order': order
-    }
-  ]
-
-  const rawResult = await network.client.messenger.send(
-    'hmy_getTransactionsHistory',
-    params,
-    network.client.messenger.chainPrefix,
-    shardID,
-  );
-
-  const result = network.client.blockchain.getRpcResult(rawResult);
-
-  return result;
-}
-
-async function getDecodedTransaction(txHash) {
-  var result = null;
-  var decodedResult = null;
-
-  const tx = await network.client.blockchain.getTransactionByHash({txnHash: txHash});
-
-  if (tx) {
-    result = tx.result;
-    input = tx.result.input;
-
-    for (let name in factoryContract.abiModel.getMethods()) {
-      let method = factoryContract.abiModel.getMethod(name)
-  
-      method.decodeInputs = hexData => decodeParameters(factoryContract, method.inputs, hexData);
-      method.decodeOutputs = hexData => decodeParameters(factoryContract, method.outputs, hexData);
-    }
-  
-    var decodedInput = decodeInput(factoryContract, input);
-    var decodedResult = null;
-
-    if (decodedInput && decodedInput.abiItem) {
-      decodedResult = decodedInput.abiItem;
-    }
-  }
-
-  return {tx: result, decoded: decodedResult};
+  return amount.toString();
 }
 
 status()

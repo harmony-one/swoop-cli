@@ -25,11 +25,11 @@ exports.parseTokens = (network, name) => {
     tokens = matchingTokensByName;
   }
 
-  const filteredTokens = tokens.filter(function(token) {
+  /*const filteredTokens = tokens.filter(function(token) {
     return token.symbol !== 'WONE';
-  });
+  });*/
 
-  return filteredTokens;
+  return tokens;
 }
 
 exports.findTokenBy = (tokens, key, value) => {
