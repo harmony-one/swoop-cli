@@ -42,21 +42,21 @@ const web3 = require('web3');
 
 // Vars
 const network = new HmyEnv(argv.network);
-const factoryContract = network.loadContract('@swoop-exchange/periphery/build/contracts/UniswapV2Router02.json', routerAddress, 'deployer');
+const routerContract = network.loadContract('@swoop-exchange/periphery/build/contracts/UniswapV2Router02.json', routerAddress, 'deployer');
 const tokens = parseTokens(network, 'all');
 
 async function status() {
   const tx = await network.client.blockchain.getTransactionByHash({txnHash: txHash});
   const input = tx.result.input;
 
-  for (let name in factoryContract.abiModel.getMethods()) {
-    let method = factoryContract.abiModel.getMethod(name)
+  for (let name in routerContract.abiModel.getMethods()) {
+    let method = routerContract.abiModel.getMethod(name)
 
-    method.decodeInputs = hexData => decodeParameters(factoryContract, method.inputs, hexData);
-    method.decodeOutputs = hexData => decodeParameters(factoryContract, method.outputs, hexData);
+    method.decodeInputs = hexData => decodeParameters(routerContract, method.inputs, hexData);
+    method.decodeOutputs = hexData => decodeParameters(routerContract, method.outputs, hexData);
   }
 
-  var decodedInput = decodeInput(factoryContract, input);
+  var decodedInput = decodeInput(routerContract, input);
 
   if (decodedInput && decodedInput.abiItem) {
     decodedInput = decodedInput.abiItem;
