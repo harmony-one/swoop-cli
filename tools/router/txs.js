@@ -46,7 +46,7 @@ if (routerAddress == null || routerAddress == '') {
 
 // Libs
 const { HmyEnv} = require("@swoop-exchange/utils");
-const { getAllDecodedTransactions, determineTxType, transactionsByBlocks, transactionsByAddresses } = require("../shared/transactions");
+const Transactions = require("../shared/transactions");
 const { decodeRouterParams } = require("../shared/contracts");
 const { parseTokens, findTokenBy } = require("../shared/tokens");
 const web3 = require('web3');
@@ -59,6 +59,7 @@ const network = new HmyEnv(argv.network);
 const contractPath = '@swoop-exchange/periphery/build/contracts/UniswapV2Router02.json';
 const tokens = parseTokens(network, 'all');
 const oneRouterAddress = toBech32(routerAddress);
+const transactions = new Transactions(network);
 
 if (address && address != '') {
   if (isBech32Address(address)) {
@@ -81,7 +82,7 @@ function createContract() {
 }
 
 async function status() {
-  const decodedTxs = await getAllDecodedTransactions(network, createContract, oneRouterAddress, true, size, 'RECEIVED', 'ASC', 0);
+  const decodedTxs = await transactions.getAllDecodedTransactions(network, createContract, oneRouterAddress, true, size, 'RECEIVED', 'ASC', 0);
   
   if (decodedTxs && decodedTxs.length > 0) {
     for(let txResult of decodedTxs) {
@@ -144,7 +145,7 @@ async function exportToCsv(txs) {
   }
 
   var addressPrefix = (oneAddress && oneAddress != '') ? `${oneAddress}-` : '';
-  var csvPath = `./export/${addressPrefix}${type}-txs.csv`;
+  var csvPath = `./data/txs/${addressPrefix}${type}-txs.csv`;
 
   if (csvData && csvData.length > 0) {
     const csv = new ObjectsToCsv(csvData);
