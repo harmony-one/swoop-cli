@@ -50,10 +50,21 @@ const tokens = parseTokens(network, tokenName);
 
 async function mint() {
   for(let token of tokens) {
+    if (token.name == 'Wrapped ONE') {
+      continue
+    }
+    
     const tokenAddress = token.address;
     const oneTokenAddress = toBech32(tokenAddress);
+    var contractName = token.name;
 
-    const tokenContract = network.loadContract(`@swoop-exchange/misc/build/contracts/${token.name}.json`, tokenAddress, 'deployer');
+    if (contractName == 'Wrapped BTC') {
+      contractName = 'WBTC';
+    }
+
+    const contractPath = `@swoop-exchange/misc/build/contracts/${contractName}.json`;
+
+    const tokenContract = network.loadContract(contractPath, tokenAddress, 'deployer');
     const tokenInstance = tokenContract.methods;
 
     const walletAddress = tokenContract.wallet.signer.address;

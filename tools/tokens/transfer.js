@@ -1,39 +1,39 @@
 // Args
 const yargs = require('yargs');
 const argv = yargs
-    .option('network', {
-      alias: 'n',
-      description: 'Which network to use',
-      type: 'string',
-      default: 'testnet'
-    })
-    .option('token', {
-      alias: 'c',
-      description: 'What token to interact with',
-      type: 'string'
-    })
-    .option('to', {
-      alias: 't',
-      description: 'Where to send tokens',
-      type: 'array',
-      coerce: array => {
-        return array.flatMap(v => v.split(','))
-      }
-    })
-    .option('amount', {
-      alias: 'a',
-      description: 'The amount of tokens to send',
-      type: 'string',
-      default: '1'
-    })
-    .option('one-amount', {
-      alias: 'o',
-      description: 'The amount of ONE to send (not required)',
-      type: 'string'
-    })
-    .help()
-    .alias('help', 'h')
-    .argv;
+  .option('network', {
+    alias: 'n',
+    description: 'Which network to use',
+    type: 'string',
+    default: 'testnet'
+  })
+  .option('token', {
+    alias: 'c',
+    description: 'What token to interact with',
+    type: 'string'
+  })
+  .option('to', {
+    alias: 't',
+    description: 'Where to send tokens',
+    type: 'array',
+    coerce: array => {
+      return array.flatMap(v => v.split(','))
+    }
+  })
+  .option('amount', {
+    alias: 'a',
+    description: 'The amount of tokens to send',
+    type: 'string',
+    default: '1'
+  })
+  .option('one-amount', {
+    alias: 'o',
+    description: 'The amount of ONE to send (not required)',
+    type: 'string'
+  })
+  .help()
+  .alias('help', 'h')
+  .argv;
 
 let tokenName = argv.token;
 let to = argv.to;
